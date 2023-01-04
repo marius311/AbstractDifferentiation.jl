@@ -10,7 +10,7 @@ The type parameter `CS` denotes the chunk size of the differentiation algorithm.
 
 See also: [ForwardDiff.jl: Configuring Chunk Size](https://juliadiff.org/ForwardDiff.jl/dev/user/advanced/#Configuring-Chunk-Size)
 """
-struct ForwardDiffBackend{CS} <: AbstractForwardMode end
+struct ForwardDiffBackend{CS,TAG} <: AbstractForwardMode end
 
 """
     ForwardDiffBackend(; chunksize::Union{Val,Nothing}=nothing)
@@ -23,9 +23,12 @@ ForwarddDiff uses a heuristic to set the chunk size based on the input. Alternat
 
 See also: [ForwardDiff.jl: Configuring Chunk Size](https://juliadiff.org/ForwardDiff.jl/dev/user/advanced/#Configuring-Chunk-Size)
 """
-function ForwardDiffBackend(; chunksize::Union{Val,Nothing}=nothing)
-    return ForwardDiffBackend{getchunksize(chunksize)}()
+function ForwardDiffBackend(; chunksize::Union{Val,Nothing}=nothing, tag=true)
+    return ForwardDiffBackend{getchunksize(chunksize), tag}()
 end
+
+tag_function(ba::ForwardDiffBackend{CS,true}, f) where {CS} = f
+tag_function(ba::ForwardDiffBackend{CS,false}, f) where {CS} = nothing
 
 @primitive function pushforward_function(ba::ForwardDiffBackend, f, xs...)
     return function pushforward(vs)
@@ -44,31 +47,34 @@ primal_value(x::AbstractArray{<:ForwardDiff.Dual}) = ForwardDiff.value.(x)
 # these implementations are more efficient than the fallbacks
 
 function gradient(ba::ForwardDiffBackend, f, x::AbstractArray)
-    cfg = ForwardDiff.GradientConfig(f, x, chunk(ba, x))
+    cfg = ForwardDiff.GradientConfig(tag_function(ba, f), x, chunk(ba, x))
     return (ForwardDiff.gradient(f, x, cfg),)
 end
 
 function jacobian(ba::ForwardDiffBackend, f, x::AbstractArray)
-    cfg = ForwardDiff.JacobianConfig(asarray ∘ f, x, chunk(ba, x))
+    cfg = ForwardDiff.JacobianConfig(tag_function(ba, asarray ∘ f), x, chunk(ba, x))
     return (ForwardDiff.jacobian(asarray ∘ f, x, cfg),)
 end
-jacobian(::ForwardDiffBackend, f, x::Number) = (ForwardDiff.derivative(f, x),)
+function jacobian(ba::ForwardDiffBackend, f, x::R) where {R <: Number}
+    T = typeof(ForwardDiff.Tag(tag_function(ba, f), R))
+    return (ForwardDiff.extract_derivative(T, f(ForwardDiff.Dual{T}(x, one(x)))),)
+end
 
 function hessian(ba::ForwardDiffBackend, f, x::AbstractArray)
-    cfg = ForwardDiff.HessianConfig(f, x, chunk(ba, x))
+    cfg = ForwardDiff.HessianConfig(tag_function(ba, f), x, chunk(ba, x))
     return (ForwardDiff.hessian(f, x, cfg),)
 end
 
 function value_and_gradient(ba::ForwardDiffBackend, f, x::AbstractArray)
     result = DiffResults.GradientResult(x)
-    cfg = ForwardDiff.GradientConfig(f, x, chunk(ba, x))
+    cfg = ForwardDiff.GradientConfig(tag_function(ba, f), x, chunk(ba, x))
     ForwardDiff.gradient!(result, f, x, cfg)
     return DiffResults.value(result), (DiffResults.derivative(result),)
 end
 
 function value_and_hessian(ba::ForwardDiffBackend, f, x)
     result = DiffResults.HessianResult(x)
-    cfg = ForwardDiff.HessianConfig(f, result, x, chunk(ba, x))
+    cfg = ForwardDiff.HessianConfig(tag_function(ba, f), result, x, chunk(ba, x))
     ForwardDiff.hessian!(result, f, x, cfg)
     return DiffResults.value(result), (DiffResults.hessian(result),)
 end
