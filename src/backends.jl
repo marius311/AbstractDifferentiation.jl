@@ -25,7 +25,7 @@ See also: [ForwardDiff.jl: Configuring Chunk Size](https://juliadiff.org/Forward
 !!! note
     To be able to use this backend, you have to load ForwardDiff.
 """
-struct ForwardDiffBackend{CS} <: AbstractForwardMode end
+struct ForwardDiffBackend{CS,TAG} <: AbstractForwardMode end
 
 """
     ReverseDiffBackend

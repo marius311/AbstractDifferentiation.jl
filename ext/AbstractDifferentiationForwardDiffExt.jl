@@ -1,6 +1,5 @@
 module AbstractDifferentiationForwardDiffExt
 
-struct ForwardDiffBackend{CS,TAG} <: AbstractForwardMode end
 if isdefined(Base, :get_extension)
     import AbstractDifferentiation as AD
     using DiffResults: DiffResults
@@ -11,17 +10,6 @@ else
     using ..ForwardDiff: ForwardDiff
 end
 
-"""
-    ForwardDiffBackend(; chunksize::Union{Val,Nothing}=nothing)
-
-Create an AD backend that uses forward mode with ForwardDiff.jl.
-
-If the `chunksize` of the differentiation algorithm is set to `nothing` (the default), then
-ForwarddDiff uses a heuristic to set the chunk size based on the input. Alternatively, if
-`chunksize=Val{N}()`, then the chunk size is set to `N`.
-
-See also: [ForwardDiff.jl: Configuring Chunk Size](https://juliadiff.org/ForwardDiff.jl/dev/user/advanced/#Configuring-Chunk-Size)
-"""
 function AD.ForwardDiffBackend(; chunksize::Union{Val,Nothing}=nothing, tag=true)
     return AD.ForwardDiffBackend{getchunksize(chunksize), tag}()
 end
@@ -54,7 +42,7 @@ function AD.jacobian(ba::AD.ForwardDiffBackend, f, x::AbstractArray)
     cfg = ForwardDiff.JacobianConfig(tag_function(ba, AD.asarray ∘ f), x, chunk(ba, x))
     return (ForwardDiff.jacobian(AD.asarray ∘ f, x, cfg),)
 end
-function AD.jacobian(ba::ForwardDiffBackend, f, x::R) where {R <: Number}
+function AD.jacobian(ba::AD.ForwardDiffBackend, f, x::R) where {R <: Number}
     T = typeof(ForwardDiff.Tag(tag_function(ba, f), R))
     return (ForwardDiff.extract_derivative(T, f(ForwardDiff.Dual{T}(x, one(x)))),)
 end
