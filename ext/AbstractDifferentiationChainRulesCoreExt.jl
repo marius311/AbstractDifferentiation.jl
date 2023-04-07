@@ -4,9 +4,14 @@ import AbstractDifferentiation as AD
 using ChainRulesCore: ChainRulesCore
 
 AD.@primitive function pullback_function(ba::AD.ReverseRuleConfigBackend, f, xs...)
-    _, back = ChainRulesCore.rrule_via_ad(AD.ruleconfig(ba), f, xs...)
-    pullback(vs) = Base.tail(back(vs))
-    pullback(vs::Tuple{Any}) = Base.tail(back(first(vs)))
+    config = AD.ruleconfig(ba)
+    _, back = ChainRulesCore.rrule_via_ad(config, f, xs...)
+    function pullback(vs)
+        grad = Base.tail(back(vs))
+        config.context.cache = nothing
+        grad
+    end
+    pullback(vs::Tuple{Any}) = pullback(first(vs))
     return pullback
 end
 
